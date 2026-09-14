@@ -1,0 +1,57 @@
+name: Connect WireGuard
+description: Connect GitHub Actions runner to WireGuard VPN
+
+inputs:
+  address:
+    required: true
+  private-key:
+    required: true
+  server-public-key:
+    required: true
+  endpoint:
+    required: true
+  allowed-ips:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install WireGuard
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        sudo apt-get update
+        sudo apt-get install -y wireguard-tools
+
+    - name: Configure WireGuard
+      shell: bash
+      env:
+        WG_ADDRESS: ${{ inputs.address }}
+        WG_PRIVATE_KEY: ${{ inputs.private-key }}
+        WG_SERVER_PUBLIC_KEY: ${{ inputs.server-public-key }}
+        WG_ENDPOINT: ${{ inputs.endpoint }}
+        WG_ALLOWED_IPS: ${{ inputs.allowed-ips }}
+      run: |
+        set -euo pipefail
+
+        sudo install -m 600 /dev/null /etc/wireguard/wg-deploy.conf
+
+        sudo tee /etc/wireguard/wg-deploy.conf >/dev/null <<EOF
+        [Interface]
+        Address = ${WG_ADDRESS}
+        PrivateKey = ${WG_PRIVATE_KEY}
+
+        [Peer]
+        PublicKey = ${WG_SERVER_PUBLIC_KEY}
+        Endpoint = ${WG_ENDPOINT}
+        AllowedIPs = ${WG_ALLOWED_IPS}
+        PersistentKeepalive = 25
+        EOF
+
+        sudo wg-quick up wg-deploy
+
+    - name: Show WireGuard status
+      shell: bash
+      run: sudo wg show wg-deploy
+  
